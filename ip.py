@@ -1,45 +1,42 @@
+from flask import Flask, render_template, request
 import requests
-import sys
-import json
 import socket
+
+app = Flask(__name__)
 
 def get_ip_from_hostname(hostname):
     try:
         return socket.gethostbyname(hostname)
     except socket.error as err:
-        print(f"Error resolving hostname: {err}")
-        sys.exit(1)
+        return None
 
 def fetch_ip_info(ip):
-    response = requests.get(f"https://ipinfo.io/{ip}/json")
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"Error fetching IP info: {response.status_code}")
-        sys.exit(1)
-
-def print_ip_info(data):
-    for key, value in data.items():
-        print(f"{key}: {value}")
-
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python ip.py <IP_ADDRESS_OR_HOSTNAME>")
-        sys.exit(1)
-
-    input_value = sys.argv[1]
-
     try:
-        # Try to fetch IP info using the input directly
-        ip = socket.inet_aton(input_value)  # Check if it's a valid IP address
-        ip = input_value
-    except socket.error:
-        # If not a valid IP, treat it as a hostname and resolve it to an IP
-        ip = get_ip_from_hostname(input_value)
+        response = requests.get(f"https://ipinfo.io/{ip}/json")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return None
+    except requests.RequestException:
+        return None
 
-    # Fetch and print IP info
-    ip_info = fetch_ip_info(ip)
-    print_ip_info(ip_info)
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    ip_info = None
+    if request.method == 'POST':
+        query = request.form.get('query')
+        if query:
+            # Check if the query is an IP address or a hostname
+            try:
+                socket.inet_aton(query)  # Validate IP address
+                ip = query
+            except socket.error:
+                ip = get_ip_from_hostname(query)
+            # Fetch IP information
+            if ip:
+                ip_info = fetch_ip_info(ip)
+    return render_template('index.html', ip_info=ip_info)
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    # Run the Flask application on 0.0.0.0 and port 5000
+    app.run(host='0.0.0.0', port=5000, debug=True)
